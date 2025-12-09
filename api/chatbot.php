@@ -280,10 +280,10 @@ function handleProductSearch($message, $conn) {
     
     // If no specific product mentioned, show categories
     if (empty($search_terms)) {
-        $query = "SELECT name, COUNT(p.id) as product_count
+        $query = "SELECT c.name, COUNT(p.id) as product_count
                   FROM categories c
                   LEFT JOIN products p ON c.id = p.category_id AND p.status = 'active'
-                  GROUP BY c.id
+                  GROUP BY c.id, c.name
                   ORDER BY c.name";
         
         $result = $conn->query($query);
