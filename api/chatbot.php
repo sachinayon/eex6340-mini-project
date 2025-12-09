@@ -156,17 +156,17 @@ function handleOrderStatus($message, $user_id, $user_role, $conn) {
         if ($result->num_rows > 0) {
             $order = $result->fetch_assoc();
             $response = "Order Status for " . htmlspecialchars($order['order_number']) . ":\n\n";
-            $response .= "📦 Status: " . ucfirst($order['status']) . "\n";
-            $response .= "💰 Amount: $" . number_format($order['total_amount'], 2) . "\n";
-            $response .= "💳 Payment: " . ucfirst($order['payment_status']) . "\n";
+            $response .= "Status: " . ucfirst($order['status']) . "\n";
+            $response .= "Amount: $" . number_format($order['total_amount'], 2) . "\n";
+            $response .= "Payment: " . ucfirst($order['payment_status']) . "\n";
             
             if ($order['delivery_status']) {
-                $response .= "🚚 Delivery: " . ucfirst(str_replace('_', ' ', $order['delivery_status'])) . "\n";
+                $response .= "Delivery: " . ucfirst(str_replace('_', ' ', $order['delivery_status'])) . "\n";
                 if ($order['tracking_number']) {
-                    $response .= "📋 Tracking: " . htmlspecialchars($order['tracking_number']) . "\n";
+                    $response .= "Tracking: " . htmlspecialchars($order['tracking_number']) . "\n";
                 }
                 if ($order['estimated_delivery_date']) {
-                    $response .= "📅 Estimated Delivery: " . date('M d, Y', strtotime($order['estimated_delivery_date'])) . "\n";
+                    $response .= "Estimated Delivery: " . date('M d, Y', strtotime($order['estimated_delivery_date'])) . "\n";
                 }
             }
             
@@ -202,11 +202,11 @@ function handleOrderStatus($message, $user_id, $user_role, $conn) {
         if ($result->num_rows > 0) {
             $order = $result->fetch_assoc();
             $response = "Your latest order " . htmlspecialchars($order['order_number']) . ":\n\n";
-            $response .= "📦 Status: " . ucfirst($order['status']) . "\n";
-            $response .= "💰 Amount: $" . number_format($order['total_amount'], 2) . "\n";
+            $response .= "Status: " . ucfirst($order['status']) . "\n";
+            $response .= "Amount: $" . number_format($order['total_amount'], 2) . "\n";
             
             if ($order['delivery_status']) {
-                $response .= "🚚 Delivery: " . ucfirst(str_replace('_', ' ', $order['delivery_status'])) . "\n";
+                $response .= "Delivery: " . ucfirst(str_replace('_', ' ', $order['delivery_status'])) . "\n";
             }
             
             return [
@@ -249,8 +249,8 @@ function handleOrderHistory($user_id, $user_role, $conn) {
     
     if ($stats['total'] > 0) {
         $response = "Your Order History:\n\n";
-        $response .= "📦 Total Orders: " . $stats['total'] . "\n";
-        $response .= "💰 Total Spent: $" . number_format($stats['total_spent'], 2) . "\n\n";
+        $response .= "Total Orders: " . $stats['total'] . "\n";
+        $response .= "Total Spent: $" . number_format($stats['total_spent'], 2) . "\n\n";
         $response .= "You can view all your orders in the 'My Orders' section from the menu.";
         
         return [
@@ -315,10 +315,10 @@ function handleProductSearch($message, $conn) {
     $stmt->execute();
     $result = $stmt->get_result();
     
-    if ($result->num_rows > 0) {
+        if ($result->num_rows > 0) {
         $response = "Found " . $result->num_rows . " product(s):\n\n";
         while ($product = $result->fetch_assoc()) {
-            $response .= "🛍️ " . htmlspecialchars($product['name']) . "\n";
+            $response .= htmlspecialchars($product['name']) . "\n";
             $response .= "   Price: $" . number_format($product['price'], 2) . "\n";
             $response .= "   Category: " . htmlspecialchars($product['category_name']) . "\n";
             $response .= "   Stock: " . ($product['stock_quantity'] > 0 ? "In Stock" : "Out of Stock") . "\n\n";
@@ -343,7 +343,7 @@ function handleProductSearch($message, $conn) {
  * Handle return policy queries
  */
 function handleReturnPolicy() {
-    $response = "📋 Return Policy:\n\n";
+    $response = "Return Policy:\n\n";
     $response .= "• 30-day return policy on all products\n";
     $response .= "• Items must be in original condition\n";
     $response .= "• Original packaging required\n";
@@ -388,15 +388,15 @@ function handleShipping($message, $user_id, $user_role, $conn) {
         $response = "Shipping Information:\n\n";
         
         if ($order['status']) {
-            $response .= "📦 Latest Order: " . htmlspecialchars($order['order_number']) . "\n";
-            $response .= "🚚 Status: " . ucfirst(str_replace('_', ' ', $order['status'])) . "\n";
+            $response .= "Latest Order: " . htmlspecialchars($order['order_number']) . "\n";
+            $response .= "Status: " . ucfirst(str_replace('_', ' ', $order['status'])) . "\n";
             
             if ($order['tracking_number']) {
-                $response .= "📋 Tracking: " . htmlspecialchars($order['tracking_number']) . "\n";
+                $response .= "Tracking: " . htmlspecialchars($order['tracking_number']) . "\n";
             }
             
             if ($order['estimated_delivery_date']) {
-                $response .= "📅 Estimated: " . date('M d, Y', strtotime($order['estimated_delivery_date'])) . "\n";
+                $response .= "Estimated: " . date('M d, Y', strtotime($order['estimated_delivery_date'])) . "\n";
             }
         } else {
             $response .= "Standard shipping: 5-7 business days\n";
@@ -421,7 +421,7 @@ function handleShipping($message, $user_id, $user_role, $conn) {
  * Handle payment queries
  */
 function handlePayment() {
-    $response = "💳 Payment Methods:\n\n";
+    $response = "Payment Methods:\n\n";
     $response .= "• Credit Card\n";
     $response .= "• Debit Card\n";
     $response .= "• PayPal\n";
@@ -440,7 +440,7 @@ function handlePayment() {
  */
 function handleGreeting($user_role) {
     $greetings = [
-        "Hello! 👋 How can I help you today?",
+        "Hello! How can I help you today?",
         "Hi there! What can I assist you with?",
         "Welcome! I'm here to help with your questions."
     ];
@@ -469,22 +469,22 @@ function handleHelp($user_role) {
     $response = "I can help you with:\n\n";
     
     if ($user_role === 'customer') {
-        $response .= "📦 Check order status\n";
-        $response .= "📋 View order history\n";
-        $response .= "🛍️ Search products\n";
-        $response .= "📋 Return policy\n";
-        $response .= "🚚 Shipping information\n";
-        $response .= "💳 Payment methods\n";
+        $response .= "• Check order status\n";
+        $response .= "• View order history\n";
+        $response .= "• Search products\n";
+        $response .= "• Return policy\n";
+        $response .= "• Shipping information\n";
+        $response .= "• Payment methods\n";
     } elseif ($user_role === 'admin') {
-        $response .= "📊 Order management queries\n";
-        $response .= "📦 Product information\n";
-        $response .= "🚚 Delivery status\n";
-        $response .= "👥 User information\n";
+        $response .= "• Order management queries\n";
+        $response .= "• Product information\n";
+        $response .= "• Delivery status\n";
+        $response .= "• User information\n";
     } else {
-        $response .= "🛍️ Product information\n";
-        $response .= "📋 Return policy\n";
-        $response .= "🚚 Shipping details\n";
-        $response .= "💳 Payment methods\n";
+        $response .= "• Product information\n";
+        $response .= "• Return policy\n";
+        $response .= "• Shipping details\n";
+        $response .= "• Payment methods\n";
     }
     
     $response .= "\nJust ask me anything!";
