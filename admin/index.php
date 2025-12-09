@@ -130,17 +130,6 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
-<div class="mt-4">
-    <h4>Quick Links</h4>
-    <div class="d-flex gap-2">
-        <a href="<?php echo getUrlPath('admin/products_manage.php'); ?>" class="btn btn-primary">Manage Products</a>
-        <a href="<?php echo getUrlPath('admin/orders_manage.php'); ?>" class="btn btn-success">Manage Orders</a>
-        <a href="<?php echo getUrlPath('admin/deliveries_manage.php'); ?>" class="btn btn-info">Manage Deliveries</a>
-        <a href="<?php echo getUrlPath('admin/categories_manage.php'); ?>" class="btn btn-secondary">Manage Categories</a>
-        <a href="<?php echo getUrlPath('admin/users_manage.php'); ?>" class="btn btn-warning">Manage Users</a>
-    </div>
-</div>
-
 <?php
 // Close connection only if it's still open
 if (isset($conn) && $conn instanceof mysqli) {
