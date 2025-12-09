@@ -93,7 +93,7 @@ include __DIR__ . '/includes/header.php';
                         <td>
                             <strong><?php echo htmlspecialchars($item['name']); ?></strong>
                         </td>
-                        <td>$<?php echo number_format($item['price'], 2); ?></td>
+                        <td>LKR <?php echo number_format($item['price'], 2); ?></td>
                         <td>
                             <form method="POST" action="" class="d-inline">
                                 <input type="hidden" name="action" value="update">
@@ -104,7 +104,7 @@ include __DIR__ . '/includes/header.php';
                                 <button type="submit" class="btn btn-sm btn-outline-primary">Update</button>
                             </form>
                         </td>
-                        <td>$<?php echo number_format($subtotal, 2); ?></td>
+                        <td>LKR <?php echo number_format($subtotal, 2); ?></td>
                         <td>
                             <form method="POST" action="" onsubmit="return confirm('Are you sure you want to remove this item?');">
                                 <input type="hidden" name="action" value="remove">
@@ -120,7 +120,7 @@ include __DIR__ . '/includes/header.php';
             <tfoot>
                 <tr>
                     <th colspan="3" class="text-end">Total:</th>
-                    <th colspan="2">$<?php echo number_format($total, 2); ?></th>
+                    <th colspan="2">LKR <?php echo number_format($total, 2); ?></th>
                 </tr>
             </tfoot>
         </table>

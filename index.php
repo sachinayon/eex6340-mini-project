@@ -34,7 +34,7 @@ $products_result = $conn->query($products_query);
                         <p class="card-text"><?php echo substr($product['description'], 0, 100); ?>...</p>
                         <div class="mt-auto">
                             <p class="card-text">
-                                <strong class="text-primary">$<?php echo number_format($product['price'], 2); ?></strong>
+                                <strong class="text-primary">LKR <?php echo number_format($product['price'], 2); ?></strong>
                                 <?php if ($product['stock_quantity'] > 0): ?>
                                     <span class="badge bg-success ms-2">In Stock</span>
                                 <?php else: ?>

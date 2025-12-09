@@ -169,13 +169,13 @@ include __DIR__ . '/includes/header.php';
                 <?php foreach ($cart_items as $item): ?>
                     <div class="d-flex justify-content-between mb-2">
                         <span><?php echo htmlspecialchars($item['name']); ?> x <?php echo $item['quantity']; ?></span>
-                        <span>$<?php echo number_format($item['price'] * $item['quantity'], 2); ?></span>
+                        <span>LKR <?php echo number_format($item['price'] * $item['quantity'], 2); ?></span>
                     </div>
                 <?php endforeach; ?>
                 <hr>
                 <div class="d-flex justify-content-between">
                     <strong>Total:</strong>
-                    <strong>$<?php echo number_format($total, 2); ?></strong>
+                    <strong>LKR <?php echo number_format($total, 2); ?></strong>
                 </div>
             </div>
         </div>

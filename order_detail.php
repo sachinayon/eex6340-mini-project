@@ -167,15 +167,15 @@ include __DIR__ . '/includes/header.php';
                                         <?php echo htmlspecialchars($item['product_name']); ?>
                                     </td>
                                     <td><?php echo $item['quantity']; ?></td>
-                                    <td>$<?php echo number_format($item['price'], 2); ?></td>
-                                    <td>$<?php echo number_format($item['subtotal'], 2); ?></td>
+                                    <td>LKR <?php echo number_format($item['price'], 2); ?></td>
+                                    <td>LKR <?php echo number_format($item['subtotal'], 2); ?></td>
                                 </tr>
                             <?php endwhile; ?>
                         </tbody>
                         <tfoot>
                             <tr>
                                 <th colspan="3" class="text-end">Total:</th>
-                                <th>$<?php echo number_format($order['total_amount'], 2); ?></th>
+                                <th>LKR <?php echo number_format($order['total_amount'], 2); ?></th>
                             </tr>
                         </tfoot>
                     </table>

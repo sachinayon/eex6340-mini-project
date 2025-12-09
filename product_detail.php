@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isLoggedIn() && isCustomer()) {
         <h2><?php echo htmlspecialchars($product['name']); ?></h2>
         <p class="text-muted">Category: <?php echo htmlspecialchars($product['category_name']); ?></p>
         <p class="lead">
-            <strong class="text-primary">$<?php echo number_format($product['price'], 2); ?></strong>
+            <strong class="text-primary">LKR <?php echo number_format($product['price'], 2); ?></strong>
         </p>
         
         <?php if ($product['stock_quantity'] > 0): ?>

@@ -74,7 +74,7 @@ include __DIR__ . '/../includes/header.php';
                         <td><?php echo $product['id']; ?></td>
                         <td><?php echo htmlspecialchars($product['name']); ?></td>
                         <td><?php echo htmlspecialchars($product['category_name'] ?? 'Uncategorized'); ?></td>
-                        <td>$<?php echo number_format($product['price'], 2); ?></td>
+                        <td>LKR <?php echo number_format($product['price'], 2); ?></td>
                         <td><?php echo $product['stock_quantity']; ?></td>
                         <td>
                             <span class="badge bg-<?php echo $product['status'] === 'active' ? 'success' : 'secondary'; ?>">

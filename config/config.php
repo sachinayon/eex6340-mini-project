@@ -76,6 +76,11 @@ function getBasePath() {
     return './';
 }
 
+// Helper function to format currency
+function formatCurrency($amount) {
+    return 'LKR ' . number_format($amount, 2);
+}
+
 // Helper function to get absolute URL path
 function getUrlPath($file) {
     // Remove leading ./ or ../ if file already has it

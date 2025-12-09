@@ -76,7 +76,7 @@ include __DIR__ . '/../includes/header.php';
         <div class="card bg-warning text-white">
             <div class="card-body">
                 <h5>Total Revenue</h5>
-                <h2>$<?php echo $stats['revenue']; ?></h2>
+                <h2>LKR <?php echo $stats['revenue']; ?></h2>
             </div>
         </div>
     </div>
@@ -107,7 +107,7 @@ include __DIR__ . '/../includes/header.php';
                                     <tr>
                                         <td><?php echo htmlspecialchars($order['order_number']); ?></td>
                                         <td><?php echo htmlspecialchars($order['full_name']); ?></td>
-                                        <td>$<?php echo number_format($order['total_amount'], 2); ?></td>
+                                        <td>LKR <?php echo number_format($order['total_amount'], 2); ?></td>
                                         <td>
                                             <span class="badge bg-info"><?php echo ucfirst($order['status']); ?></span>
                                         </td>

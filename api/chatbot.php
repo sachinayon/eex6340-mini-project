@@ -88,7 +88,17 @@ function detectIntent($message) {
         return 'order_history';
     }
     
-    // Product search keywords
+    // Quantitative queries - Check EARLY to catch revenue, most ordered, date ranges, etc.
+    // Check for "most ordered", "revenue", "between", date ranges BEFORE product search
+    if (preg_match('/\b(most ordered|top ordered|best selling|popular|frequently ordered|revenue|sales|income|between|from.*to)\b/i', $message)) {
+        return 'quantitative';
+    }
+    
+    if (preg_match('/\b(how many|how much|count|sum|total|average|avg|number of|quantity of|this month|last month|this year|last year)\b/', $message)) {
+        return 'quantitative';
+    }
+    
+    // Product search keywords (only if not quantitative)
     if (preg_match('/\b(product|products|item|items|show|search|find|buy|purchase|price|cost)\b/', $message)) {
         return 'product_search';
     }
@@ -101,11 +111,6 @@ function detectIntent($message) {
     // Shipping keywords
     if (preg_match('/\b(shipping|delivery|deliver|ship|when will|arrive|estimated)\b/', $message)) {
         return 'shipping';
-    }
-    
-    // Quantitative queries (how many, how much, count, sum, average) - Check BEFORE payment to catch "total paid orders"
-    if (preg_match('/\b(how many|how much|count|sum|total|average|avg|number of|quantity of)\b/', $message)) {
-        return 'quantitative';
     }
     
     // Payment keywords (only if not a quantitative query about orders)
@@ -166,7 +171,7 @@ function handleOrderStatus($message, $user_id, $user_role, $conn) {
             $order = $result->fetch_assoc();
             $response = "Order Status for " . htmlspecialchars($order['order_number']) . ":\n\n";
             $response .= "Status: " . ucfirst($order['status']) . "\n";
-            $response .= "Amount: $" . number_format($order['total_amount'], 2) . "\n";
+            $response .= "Amount: LKR " . number_format($order['total_amount'], 2) . "\n";
             $response .= "Payment: " . ucfirst($order['payment_status']) . "\n";
             
             if ($order['delivery_status']) {
@@ -212,7 +217,7 @@ function handleOrderStatus($message, $user_id, $user_role, $conn) {
             $order = $result->fetch_assoc();
             $response = "Your latest order " . htmlspecialchars($order['order_number']) . ":\n\n";
             $response .= "Status: " . ucfirst($order['status']) . "\n";
-            $response .= "Amount: $" . number_format($order['total_amount'], 2) . "\n";
+            $response .= "Amount: LKR " . number_format($order['total_amount'], 2) . "\n";
             
             if ($order['delivery_status']) {
                 $response .= "Delivery: " . ucfirst(str_replace('_', ' ', $order['delivery_status'])) . "\n";
@@ -259,7 +264,7 @@ function handleOrderHistory($user_id, $user_role, $conn) {
     if ($stats['total'] > 0) {
         $response = "Your Order History:\n\n";
         $response .= "Total Orders: " . $stats['total'] . "\n";
-        $response .= "Total Spent: $" . number_format($stats['total_spent'], 2) . "\n\n";
+        $response .= "Total Spent: LKR " . number_format($stats['total_spent'], 2) . "\n\n";
         $response .= "You can view all your orders in the 'My Orders' section from the menu.";
         
         return [
@@ -328,7 +333,7 @@ function handleProductSearch($message, $conn) {
         $response = "Found " . $result->num_rows . " product(s):\n\n";
         while ($product = $result->fetch_assoc()) {
             $response .= htmlspecialchars($product['name']) . "\n";
-            $response .= "   Price: $" . number_format($product['price'], 2) . "\n";
+            $response .= "   Price: LKR " . number_format($product['price'], 2) . "\n";
             $response .= "   Category: " . htmlspecialchars($product['category_name']) . "\n";
             $response .= "   Stock: " . ($product['stock_quantity'] > 0 ? "In Stock" : "Out of Stock") . "\n\n";
         }
@@ -484,7 +489,7 @@ function handleHelp($user_role) {
         $response .= "• Return policy\n";
         $response .= "• Shipping information\n";
         $response .= "• Payment methods\n";
-        $response .= "• Quantitative queries (how many orders, how much spent, average order value, etc.)\n";
+        $response .= "• Quantitative queries (how many orders, how much spent, average order value, date ranges, most ordered items, etc.)\n";
     } elseif ($user_role === 'admin') {
         $response .= "• Order management queries\n";
         $response .= "• Product information\n";
@@ -509,6 +514,79 @@ function handleHelp($user_role) {
 }
 
 /**
+ * Parse date range from message
+ */
+function parseDateRange($message, $conn) {
+    $date_conditions = [];
+    $date_params = [];
+    
+    // Detect time periods
+    if (preg_match('/\b(this month|current month)\b/i', $message)) {
+        $date_conditions[] = "DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(NOW(), '%Y-%m')";
+    } elseif (preg_match('/\b(last month|previous month)\b/i', $message)) {
+        $date_conditions[] = "DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 1 MONTH), '%Y-%m')";
+    } elseif (preg_match('/\b(this year|current year)\b/i', $message)) {
+        $date_conditions[] = "YEAR(created_at) = YEAR(NOW())";
+    } elseif (preg_match('/\b(last year|previous year)\b/i', $message)) {
+        $date_conditions[] = "YEAR(created_at) = YEAR(NOW()) - 1";
+    } elseif (preg_match('/\b(today)\b/i', $message)) {
+        $date_conditions[] = "DATE(created_at) = CURDATE()";
+    } elseif (preg_match('/\b(yesterday)\b/i', $message)) {
+        $date_conditions[] = "DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)";
+    } elseif (preg_match('/\b(this week|current week)\b/i', $message)) {
+        $date_conditions[] = "YEARWEEK(created_at, 1) = YEARWEEK(NOW(), 1)";
+    } elseif (preg_match('/\b(last week|previous week)\b/i', $message)) {
+        $date_conditions[] = "YEARWEEK(created_at, 1) = YEARWEEK(DATE_SUB(NOW(), INTERVAL 1 WEEK), 1)";
+    }
+    
+    // Detect month names
+    $months = [
+        'january' => 1, 'jan' => 1, 'february' => 2, 'feb' => 2,
+        'march' => 3, 'mar' => 3, 'april' => 4, 'apr' => 4,
+        'may' => 5, 'june' => 6, 'jun' => 6, 'july' => 7, 'jul' => 7,
+        'august' => 8, 'aug' => 8, 'september' => 9, 'sep' => 9, 'sept' => 9,
+        'october' => 10, 'oct' => 10, 'november' => 11, 'nov' => 11,
+        'december' => 12, 'dec' => 12
+    ];
+    
+    // Detect "between X and Y" or "from X to Y"
+    if (preg_match('/\b(between|from)\s+(\w+)\s+(and|to)\s+(\w+)\b/i', $message, $matches)) {
+        $month1 = strtolower($matches[2]);
+        $month2 = strtolower($matches[4]);
+        
+        if (isset($months[$month1]) && isset($months[$month2])) {
+            $year = date('Y');
+            // Check if year is mentioned
+            if (preg_match('/\b(20\d{2})\b/', $message, $year_match)) {
+                $year = intval($year_match[1]);
+            }
+            $start_date = "$year-" . str_pad($months[$month1], 2, '0', STR_PAD_LEFT) . "-01";
+            $end_date = date('Y-m-t', strtotime("$year-" . str_pad($months[$month2], 2, '0', STR_PAD_LEFT) . "-01"));
+            $date_conditions[] = "DATE(created_at) BETWEEN ? AND ?";
+            $date_params[] = $start_date;
+            $date_params[] = $end_date;
+        }
+    } elseif (preg_match('/\b(in|during)\s+(\w+)\b/i', $message, $matches)) {
+        $month = strtolower($matches[2]);
+        if (isset($months[$month])) {
+            $year = date('Y');
+            // Check if year is mentioned
+            if (preg_match('/\b(20\d{2})\b/', $message, $year_match)) {
+                $year = intval($year_match[1]);
+            }
+            $date_conditions[] = "MONTH(created_at) = ? AND YEAR(created_at) = ?";
+            $date_params[] = $months[$month];
+            $date_params[] = $year;
+        }
+    }
+    
+    return [
+        'conditions' => $date_conditions,
+        'params' => $date_params
+    ];
+}
+
+/**
  * Handle quantitative queries (how many, how much, count, sum, average)
  */
 function handleQuantitativeQuery($message, $user_id, $user_role, $conn) {
@@ -516,6 +594,8 @@ function handleQuantitativeQuery($message, $user_id, $user_role, $conn) {
     $is_count = preg_match('/\b(how many|count|number of|quantity of)\b/', $message);
     $is_sum = preg_match('/\b(how much|sum|total|spent|spending)\b/', $message);
     $is_average = preg_match('/\b(average|avg|mean)\b/', $message);
+    $is_max = preg_match('/\b(max|maximum|highest|most|top|best)\b/', $message);
+    $is_min = preg_match('/\b(min|minimum|lowest|least)\b/', $message);
     
     // Detect entity type
     $is_orders = preg_match('/\b(order|orders)\b/', $message);
@@ -523,6 +603,85 @@ function handleQuantitativeQuery($message, $user_id, $user_role, $conn) {
     $is_cart = preg_match('/\b(cart|items in cart|cart items)\b/', $message);
     $is_categories = preg_match('/\b(categor|categories)\b/', $message);
     $is_spending = preg_match('/\b(spent|spending|total spent|money spent|amount spent)\b/', $message);
+    $is_most_ordered = preg_match('/\b(most ordered|top ordered|best selling|popular|frequently ordered)\b/i', $message);
+    
+    // Parse date range
+    $date_range = parseDateRange($message, $conn);
+    
+    // Handle most ordered items / top products
+    if ($is_most_ordered && ($is_orders || $is_products || preg_match('/\b(item|items)\b/', $message))) {
+        // Get most ordered products - admin sees all, customers see all (it's public info)
+        $limit = 5;
+        if (preg_match('/\b(top|first)\s+(\d+)\b/i', $message, $matches)) {
+            $limit = intval($matches[2]);
+        }
+        
+        // Build WHERE clause with date range (apply to orders.created_at)
+        $where_clauses = [];
+        $where_params = [];
+        $param_types = '';
+        
+        // Add date conditions (replace created_at with o.created_at for orders table)
+        if (!empty($date_range['conditions'])) {
+            foreach ($date_range['conditions'] as $condition) {
+                $where_clauses[] = str_replace('created_at', 'o.created_at', $condition);
+            }
+            $where_params = array_merge($where_params, $date_range['params']);
+            $param_types = str_repeat('s', count($date_range['params']));
+        }
+        
+        $where_sql = !empty($where_clauses) ? 'WHERE ' . implode(' AND ', $where_clauses) : '';
+        
+        $query = "SELECT p.name, SUM(oi.quantity) as total_ordered, SUM(oi.subtotal) as total_revenue
+                 FROM order_items oi
+                 JOIN products p ON oi.product_id = p.id
+                 JOIN orders o ON oi.order_id = o.id
+                 " . $where_sql . "
+                 GROUP BY p.id, p.name
+                 ORDER BY total_ordered DESC
+                 LIMIT ?";
+        
+        $stmt = $conn->prepare($query);
+        if (!empty($where_params)) {
+            $params = array_merge($where_params, [$limit]);
+            $types = $param_types . 'i';
+            $stmt->bind_param($types, ...$params);
+        } else {
+            $stmt->bind_param("i", $limit);
+        }
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        $period_desc = '';
+        if (preg_match('/\b(this year|current year)\b/i', $message)) {
+            $period_desc = ' this year';
+        } elseif (preg_match('/\b(this month|current month)\b/i', $message)) {
+            $period_desc = ' this month';
+        } elseif (preg_match('/\b(last month|previous month)\b/i', $message)) {
+            $period_desc = ' last month';
+        } elseif (preg_match('/\b(between|from)\s+(\w+)\s+(and|to)\s+(\w+)\b/i', $message)) {
+            $period_desc = ' in the specified period';
+        }
+        
+        if ($result->num_rows > 0) {
+            $response = "Most Ordered Products" . $period_desc . ":\n\n";
+            $rank = 1;
+            while ($row = $result->fetch_assoc()) {
+                $response .= $rank . ". " . htmlspecialchars($row['name']) . "\n";
+                $response .= "   Quantity: " . $row['total_ordered'] . "\n";
+                $response .= "   Revenue: LKR " . number_format($row['total_revenue'], 2) . "\n\n";
+                $rank++;
+            }
+        } else {
+            $response = "No orders found" . $period_desc . ".";
+        }
+        
+        return [
+            'success' => true,
+            'message' => $response,
+            'type' => 'quantitative'
+        ];
+    }
     
     // Handle orders queries
     if ($is_orders) {
@@ -548,74 +707,79 @@ function handleQuantitativeQuery($message, $user_id, $user_role, $conn) {
             $payment_status = 'paid';
         }
         
+        // Build WHERE clause with date range and filters
+        $where_clauses = [];
+        $where_params = [];
+        $param_types = '';
+        
+        if ($user_role !== 'admin' && $user_id) {
+            $where_clauses[] = "user_id = ?";
+            $where_params[] = $user_id;
+            $param_types .= 'i';
+        } elseif (!$user_id && $user_role !== 'admin') {
+            return [
+                'success' => true,
+                'message' => 'Please login to check your order information.',
+                'type' => 'info'
+            ];
+        }
+        
+        if ($order_status) {
+            $where_clauses[] = "status = ?";
+            $where_params[] = $order_status;
+            $param_types .= 's';
+        }
+        
+        if ($payment_status) {
+            $where_clauses[] = "payment_status = ?";
+            $where_params[] = $payment_status;
+            $param_types .= 's';
+        }
+        
+        // Add date conditions
+        if (!empty($date_range['conditions'])) {
+            $where_clauses = array_merge($where_clauses, $date_range['conditions']);
+            $where_params = array_merge($where_params, $date_range['params']);
+            $param_types .= str_repeat('s', count($date_range['params']));
+        }
+        
+        $where_sql = !empty($where_clauses) ? 'WHERE ' . implode(' AND ', $where_clauses) : '';
+        
+        // Get time period description
+        $period_desc = '';
+        if (preg_match('/\b(this month|current month)\b/i', $message)) {
+            $period_desc = ' this month';
+        } elseif (preg_match('/\b(last month|previous month)\b/i', $message)) {
+            $period_desc = ' last month';
+        } elseif (preg_match('/\b(this year|current year)\b/i', $message)) {
+            $period_desc = ' this year';
+        } elseif (preg_match('/\b(between|from)\s+(\w+)\s+(and|to)\s+(\w+)\b/i', $message)) {
+            $period_desc = ' in the specified period';
+        }
+        
         // If status filter is present, treat as count query (even if "total" is mentioned)
         if ($is_count || ($is_sum && ($order_status || $payment_status))) {
-            // Count orders (with optional status filter)
-            if ($user_role === 'admin') {
-                // Admin can see all orders
-                if ($order_status) {
-                    $query = "SELECT COUNT(*) as count FROM orders WHERE status = ?";
-                    $stmt = $conn->prepare($query);
-                    $stmt->bind_param("s", $order_status);
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-                    $data = $result->fetch_assoc();
-                    $count = $data['count'];
-                    $response = "There are " . $count . " " . $order_status . " order" . ($count != 1 ? 's' : '') . " in the system.";
-                } elseif (isset($payment_status)) {
-                    $query = "SELECT COUNT(*) as count FROM orders WHERE payment_status = ?";
-                    $stmt = $conn->prepare($query);
-                    $stmt->bind_param("s", $payment_status);
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-                    $data = $result->fetch_assoc();
-                    $count = $data['count'];
-                    $response = "There are " . $count . " paid order" . ($count != 1 ? 's' : '') . " in the system.";
-                } else {
-                    $query = "SELECT COUNT(*) as count FROM orders";
-                    $result = $conn->query($query);
-                    $data = $result->fetch_assoc();
-                    $count = $data['count'];
-                    $response = "There are " . $count . " total order" . ($count != 1 ? 's' : '') . " in the system.";
-                }
+            // Count orders (with optional status filter and date range)
+            $query = "SELECT COUNT(*) as count FROM orders " . $where_sql;
+            
+            if (!empty($where_params)) {
+                $stmt = $conn->prepare($query);
+                $stmt->bind_param($param_types, ...$where_params);
+                $stmt->execute();
+                $result = $stmt->get_result();
             } else {
-                // Customer can only see their own orders
-                if (!$user_id) {
-                    return [
-                        'success' => true,
-                        'message' => 'Please login to check your order information.',
-                        'type' => 'info'
-                    ];
-                }
-                
-                if ($order_status) {
-                    $query = "SELECT COUNT(*) as count FROM orders WHERE user_id = ? AND status = ?";
-                    $stmt = $conn->prepare($query);
-                    $stmt->bind_param("is", $user_id, $order_status);
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-                    $data = $result->fetch_assoc();
-                    $count = $data['count'];
-                    $response = "You have " . $count . " " . $order_status . " order" . ($count != 1 ? 's' : '') . ".";
-                } elseif (isset($payment_status)) {
-                    $query = "SELECT COUNT(*) as count FROM orders WHERE user_id = ? AND payment_status = ?";
-                    $stmt = $conn->prepare($query);
-                    $stmt->bind_param("is", $user_id, $payment_status);
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-                    $data = $result->fetch_assoc();
-                    $count = $data['count'];
-                    $response = "You have " . $count . " paid order" . ($count != 1 ? 's' : '') . ".";
-                } else {
-                    $query = "SELECT COUNT(*) as count FROM orders WHERE user_id = ?";
-                    $stmt = $conn->prepare($query);
-                    $stmt->bind_param("i", $user_id);
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-                    $data = $result->fetch_assoc();
-                    $count = $data['count'];
-                    $response = "You have " . $count . " order" . ($count != 1 ? 's' : '') . ".";
-                }
+                $result = $conn->query($query);
+            }
+            
+            $data = $result->fetch_assoc();
+            $count = $data['count'];
+            
+            if ($user_role === 'admin') {
+                $status_text = $order_status ? $order_status . ' ' : ($payment_status ? 'paid ' : '');
+                $response = "There are " . $count . " " . $status_text . "order" . ($count != 1 ? 's' : '') . $period_desc . " in the system.";
+            } else {
+                $status_text = $order_status ? $order_status . ' ' : ($payment_status ? 'paid ' : '');
+                $response = "You have " . $count . " " . $status_text . "order" . ($count != 1 ? 's' : '') . $period_desc . ".";
             }
             
             return [
@@ -624,16 +788,26 @@ function handleQuantitativeQuery($message, $user_id, $user_role, $conn) {
                 'type' => 'quantitative'
             ];
         } elseif ($is_sum || $is_spending) {
-            // Total spending
-            $query = "SELECT SUM(total_amount) as total FROM orders WHERE user_id = ?";
-            $stmt = $conn->prepare($query);
-            $stmt->bind_param("i", $user_id);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $data = $result->fetch_assoc();
+            // Total spending (with date range support)
+            $query = "SELECT SUM(total_amount) as total FROM orders " . $where_sql;
             
+            if (!empty($where_params)) {
+                $stmt = $conn->prepare($query);
+                $stmt->bind_param($param_types, ...$where_params);
+                $stmt->execute();
+                $result = $stmt->get_result();
+            } else {
+                $result = $conn->query($query);
+            }
+            
+            $data = $result->fetch_assoc();
             $total = $data['total'] ?? 0;
-            $response = "You have spent a total of $" . number_format($total, 2) . " on all your orders.";
+            
+            if ($user_role === 'admin') {
+                $response = "Total revenue" . $period_desc . " is LKR " . number_format($total, 2) . ".";
+            } else {
+                $response = "You have spent a total of LKR " . number_format($total, 2) . $period_desc . " on all your orders.";
+            }
             
             return [
                 'success' => true,
@@ -641,20 +815,57 @@ function handleQuantitativeQuery($message, $user_id, $user_role, $conn) {
                 'type' => 'quantitative'
             ];
         } elseif ($is_average) {
-            // Average order value
-            $query = "SELECT AVG(total_amount) as avg_amount, COUNT(*) as count 
-                     FROM orders WHERE user_id = ?";
-            $stmt = $conn->prepare($query);
-            $stmt->bind_param("i", $user_id);
-            $stmt->execute();
-            $result = $stmt->get_result();
+            // Average order value (with date range support)
+            $query = "SELECT AVG(total_amount) as avg_amount, COUNT(*) as count FROM orders " . $where_sql;
+            
+            if (!empty($where_params)) {
+                $stmt = $conn->prepare($query);
+                $stmt->bind_param($param_types, ...$where_params);
+                $stmt->execute();
+                $result = $stmt->get_result();
+            } else {
+                $result = $conn->query($query);
+            }
+            
             $data = $result->fetch_assoc();
             
             if ($data['count'] > 0) {
                 $avg = $data['avg_amount'] ?? 0;
-                $response = "Your average order value is $" . number_format($avg, 2) . ".";
+                if ($user_role === 'admin') {
+                    $response = "The average order value" . $period_desc . " is LKR " . number_format($avg, 2) . ".";
+                } else {
+                    $response = "Your average order value" . $period_desc . " is LKR " . number_format($avg, 2) . ".";
+                }
             } else {
-                $response = "You don't have any orders yet to calculate an average.";
+                $response = "No orders found" . $period_desc . " to calculate an average.";
+            }
+            
+            return [
+                'success' => true,
+                'message' => $response,
+                'type' => 'quantitative'
+            ];
+        } elseif ($is_max || $is_min) {
+            // Highest/Lowest order value
+            $order_by = $is_max ? 'DESC' : 'ASC';
+            $query = "SELECT total_amount, order_number, created_at FROM orders " . $where_sql . " ORDER BY total_amount " . $order_by . " LIMIT 1";
+            
+            if (!empty($where_params)) {
+                $stmt = $conn->prepare($query);
+                $stmt->bind_param($param_types, ...$where_params);
+                $stmt->execute();
+                $result = $stmt->get_result();
+            } else {
+                $result = $conn->query($query);
+            }
+            
+            if ($result->num_rows > 0) {
+                $order = $result->fetch_assoc();
+                $comparison = $is_max ? 'highest' : 'lowest';
+                $response = "The " . $comparison . " order value" . $period_desc . " is LKR " . number_format($order['total_amount'], 2) . 
+                           " (Order: " . htmlspecialchars($order['order_number']) . ").";
+            } else {
+                $response = "No orders found" . $period_desc . ".";
             }
             
             return [
@@ -689,7 +900,7 @@ function handleQuantitativeQuery($message, $user_id, $user_role, $conn) {
             $data = $result->fetch_assoc();
             
             $total = $data['total_value'] ?? 0;
-            $response = "The total value of all active products in stock is $" . number_format($total, 2) . ".";
+            $response = "The total value of all active products in stock is LKR " . number_format($total, 2) . ".";
             
             return [
                 'success' => true,
@@ -703,7 +914,7 @@ function handleQuantitativeQuery($message, $user_id, $user_role, $conn) {
             $data = $result->fetch_assoc();
             
             $avg = $data['avg_price'] ?? 0;
-            $response = "The average product price is $" . number_format($avg, 2) . ".";
+            $response = "The average product price is LKR " . number_format($avg, 2) . ".";
             
             return [
                 'success' => true,
@@ -768,7 +979,7 @@ function handleQuantitativeQuery($message, $user_id, $user_role, $conn) {
             
             $total = $data['total'] ?? 0;
             if ($total > 0) {
-                $response = "The total value of items in your cart is $" . number_format($total, 2) . ".";
+                $response = "The total value of items in your cart is LKR " . number_format($total, 2) . ".";
             } else {
                 $response = "Your cart is empty. Total value is $0.00.";
             }
@@ -797,6 +1008,60 @@ function handleQuantitativeQuery($message, $user_id, $user_role, $conn) {
         ];
     }
     
+    // Handle revenue queries (for admins or general)
+    $is_revenue = preg_match('/\b(revenue|total revenue|sales|total sales|income)\b/i', $message);
+    if ($is_revenue) {
+        // Build WHERE clause with date range
+        $where_clauses = ["payment_status = 'paid'"];
+        $where_params = [];
+        $param_types = '';
+        
+        // Add date conditions
+        if (!empty($date_range['conditions'])) {
+            $where_clauses = array_merge($where_clauses, $date_range['conditions']);
+            $where_params = array_merge($where_params, $date_range['params']);
+            $param_types = str_repeat('s', count($date_range['params']));
+        }
+        
+        $where_sql = 'WHERE ' . implode(' AND ', $where_clauses);
+        $query = "SELECT SUM(total_amount) as total FROM orders " . $where_sql;
+        
+        if (!empty($where_params)) {
+            $stmt = $conn->prepare($query);
+            $stmt->bind_param($param_types, ...$where_params);
+            $stmt->execute();
+            $result = $stmt->get_result();
+        } else {
+            $result = $conn->query($query);
+        }
+        
+        $data = $result->fetch_assoc();
+        $total = $data['total'] ?? 0;
+        
+        $period_desc = '';
+        if (preg_match('/\b(this month|current month)\b/i', $message)) {
+            $period_desc = ' this month';
+        } elseif (preg_match('/\b(last month|previous month)\b/i', $message)) {
+            $period_desc = ' last month';
+        } elseif (preg_match('/\b(this year|current year)\b/i', $message)) {
+            $period_desc = ' this year';
+        } elseif (preg_match('/\b(between|from)\s+(\w+)\s+(and|to)\s+(\w+)\b/i', $message)) {
+            $period_desc = ' in the specified period';
+        }
+        
+        if ($user_role === 'admin') {
+            $response = "Total revenue from all paid orders" . $period_desc . " is LKR " . number_format($total, 2) . ".";
+        } else {
+            $response = "Total revenue" . $period_desc . " is LKR " . number_format($total, 2) . ".";
+        }
+        
+        return [
+            'success' => true,
+            'message' => $response,
+            'type' => 'quantitative'
+        ];
+    }
+    
     // Handle general spending queries
     if ($is_spending && !$is_orders) {
         if (!$user_id) {
@@ -807,15 +1072,38 @@ function handleQuantitativeQuery($message, $user_id, $user_role, $conn) {
             ];
         }
         
-        $query = "SELECT SUM(total_amount) as total FROM orders WHERE user_id = ?";
+        // Add date range support
+        $where_clauses = ["user_id = ?"];
+        $where_params = [$user_id];
+        $param_types = 'i';
+        
+        if (!empty($date_range['conditions'])) {
+            $where_clauses = array_merge($where_clauses, $date_range['conditions']);
+            $where_params = array_merge($where_params, $date_range['params']);
+            $param_types .= str_repeat('s', count($date_range['params']));
+        }
+        
+        $where_sql = 'WHERE ' . implode(' AND ', $where_clauses);
+        $query = "SELECT SUM(total_amount) as total FROM orders " . $where_sql;
+        
         $stmt = $conn->prepare($query);
-        $stmt->bind_param("i", $user_id);
+        $stmt->bind_param($param_types, ...$where_params);
         $stmt->execute();
         $result = $stmt->get_result();
         $data = $result->fetch_assoc();
         
         $total = $data['total'] ?? 0;
-        $response = "You have spent a total of $" . number_format($total, 2) . ".";
+        
+        $period_desc = '';
+        if (preg_match('/\b(this month|current month)\b/i', $message)) {
+            $period_desc = ' this month';
+        } elseif (preg_match('/\b(last month|previous month)\b/i', $message)) {
+            $period_desc = ' last month';
+        } elseif (preg_match('/\b(between|from)\s+(\w+)\s+(and|to)\s+(\w+)\b/i', $message)) {
+            $period_desc = ' in the specified period';
+        }
+        
+        $response = "You have spent a total of LKR " . number_format($total, 2) . $period_desc . ".";
         
         return [
             'success' => true,
@@ -846,14 +1134,34 @@ function handleQuantitativeQuery($message, $user_id, $user_role, $conn) {
             ];
         }
         
-        // Total orders (all orders in system)
+        // Total orders (all orders in system) - with date range support
         if ($is_all_orders && $is_count) {
-            $query = "SELECT COUNT(*) as count FROM orders";
-            $result = $conn->query($query);
-            $data = $result->fetch_assoc();
+            $where_sql = !empty($date_range['conditions']) ? 'WHERE ' . implode(' AND ', $date_range['conditions']) : '';
+            $query = "SELECT COUNT(*) as count FROM orders " . $where_sql;
             
+            if (!empty($date_range['params'])) {
+                $stmt = $conn->prepare($query);
+                $types = str_repeat('s', count($date_range['params']));
+                $stmt->bind_param($types, ...$date_range['params']);
+                $stmt->execute();
+                $result = $stmt->get_result();
+            } else {
+                $result = $conn->query($query);
+            }
+            
+            $data = $result->fetch_assoc();
             $count = $data['count'];
-            $response = "There are " . $count . " total order" . ($count != 1 ? 's' : '') . " in the system.";
+            
+            $period_desc = '';
+            if (preg_match('/\b(this month|current month)\b/i', $message)) {
+                $period_desc = ' this month';
+            } elseif (preg_match('/\b(last month|previous month)\b/i', $message)) {
+                $period_desc = ' last month';
+            } elseif (preg_match('/\b(this year|current year)\b/i', $message)) {
+                $period_desc = ' this year';
+            }
+            
+            $response = "There are " . $count . " total order" . ($count != 1 ? 's' : '') . $period_desc . " in the system.";
             
             return [
                 'success' => true,
@@ -862,14 +1170,44 @@ function handleQuantitativeQuery($message, $user_id, $user_role, $conn) {
             ];
         }
         
-        // Total revenue
+        // Total revenue - with date range support
         if ($is_revenue || ($is_sum && $is_orders && !$user_id)) {
-            $query = "SELECT SUM(total_amount) as total FROM orders WHERE payment_status = 'paid'";
-            $result = $conn->query($query);
-            $data = $result->fetch_assoc();
+            $where_clauses = ["payment_status = 'paid'"];
+            $where_params = [];
             
+            if (!empty($date_range['conditions'])) {
+                $where_clauses = array_merge($where_clauses, $date_range['conditions']);
+                $where_params = array_merge($where_params, $date_range['params']);
+            }
+            
+            $where_sql = 'WHERE ' . implode(' AND ', $where_clauses);
+            $query = "SELECT SUM(total_amount) as total FROM orders " . $where_sql;
+            
+            if (!empty($where_params)) {
+                $stmt = $conn->prepare($query);
+                $types = str_repeat('s', count($where_params));
+                $stmt->bind_param($types, ...$where_params);
+                $stmt->execute();
+                $result = $stmt->get_result();
+            } else {
+                $result = $conn->query($query);
+            }
+            
+            $data = $result->fetch_assoc();
             $total = $data['total'] ?? 0;
-            $response = "Total revenue from all paid orders is $" . number_format($total, 2) . ".";
+            
+            $period_desc = '';
+            if (preg_match('/\b(this month|current month)\b/i', $message)) {
+                $period_desc = ' this month';
+            } elseif (preg_match('/\b(last month|previous month)\b/i', $message)) {
+                $period_desc = ' last month';
+            } elseif (preg_match('/\b(this year|current year)\b/i', $message)) {
+                $period_desc = ' this year';
+            } elseif (preg_match('/\b(between|from)\s+(\w+)\s+(and|to)\s+(\w+)\b/i', $message)) {
+                $period_desc = ' in the specified period';
+            }
+            
+            $response = "Total revenue from all paid orders" . $period_desc . " is LKR " . number_format($total, 2) . ".";
             
             return [
                 'success' => true,
@@ -878,15 +1216,32 @@ function handleQuantitativeQuery($message, $user_id, $user_role, $conn) {
             ];
         }
         
-        // Average order value (all orders)
+        // Average order value (all orders) - with date range support
         if ($is_average && $is_orders) {
-            $query = "SELECT AVG(total_amount) as avg_amount, COUNT(*) as count FROM orders";
-            $result = $conn->query($query);
+            $where_sql = !empty($date_range['conditions']) ? 'WHERE ' . implode(' AND ', $date_range['conditions']) : '';
+            $query = "SELECT AVG(total_amount) as avg_amount, COUNT(*) as count FROM orders " . $where_sql;
+            
+            if (!empty($date_range['params'])) {
+                $stmt = $conn->prepare($query);
+                $types = str_repeat('s', count($date_range['params']));
+                $stmt->bind_param($types, ...$date_range['params']);
+                $stmt->execute();
+                $result = $stmt->get_result();
+            } else {
+                $result = $conn->query($query);
+            }
+            
             $data = $result->fetch_assoc();
             
             if ($data['count'] > 0) {
                 $avg = $data['avg_amount'] ?? 0;
-                $response = "The average order value across all orders is $" . number_format($avg, 2) . ".";
+                $period_desc = '';
+                if (preg_match('/\b(this month|current month)\b/i', $message)) {
+                    $period_desc = ' this month';
+                } elseif (preg_match('/\b(last month|previous month)\b/i', $message)) {
+                    $period_desc = ' last month';
+                }
+                $response = "The average order value across all orders" . $period_desc . " is LKR " . number_format($avg, 2) . ".";
             } else {
                 $response = "There are no orders in the system yet.";
             }
@@ -903,12 +1258,21 @@ function handleQuantitativeQuery($message, $user_id, $user_role, $conn) {
     return [
         'success' => true,
         'message' => "I can help you with quantitative queries about:\n" .
-                     "• How many orders you have\n" .
-                     "• How much you've spent\n" .
+                     "• How many orders (this month, last month, between dates)\n" .
+                     "• How much you've spent (with date ranges)\n" .
                      "• Average order value\n" .
+                     "• Total orders this month/year\n" .
+                     "• Orders between January and March\n" .
+                     "• Most ordered items / Top products\n" .
+                     "• Highest/Lowest order values\n" .
                      "• Number of products\n" .
                      "• Cart items count\n" .
                      "• Number of categories\n\n" .
+                     "Examples:\n" .
+                     "• 'Total orders this month'\n" .
+                     "• 'Orders between January and March'\n" .
+                     "• 'Most ordered products'\n" .
+                     "• 'Average order value this year'\n\n" .
                      "Please specify what you'd like to know about.",
         'type' => 'info'
     ];
@@ -926,7 +1290,7 @@ function handleGeneralQuery($message, $user_id, $user_role, $conn) {
     $response .= "• Return policy\n";
     $response .= "• Shipping information\n";
     $response .= "• Payment methods\n";
-    $response .= "• Quantitative queries (how many, how much, count, sum, average)\n\n";
+    $response .= "• Quantitative queries (how many, how much, count, sum, average, date ranges, most ordered items)\n\n";
     $response .= "Could you rephrase your question or ask about one of these topics?";
     
     return [

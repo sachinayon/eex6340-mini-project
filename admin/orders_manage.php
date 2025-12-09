@@ -101,7 +101,7 @@ include __DIR__ . '/../includes/header.php';
                             <?php echo htmlspecialchars($order['full_name']); ?><br>
                             <small class="text-muted"><?php echo htmlspecialchars($order['email']); ?></small>
                         </td>
-                        <td>$<?php echo number_format($order['total_amount'], 2); ?></td>
+                        <td>LKR <?php echo number_format($order['total_amount'], 2); ?></td>
                         <td>
                             <form method="POST" action="" class="d-inline">
                                 <input type="hidden" name="order_id" value="<?php echo $order['id']; ?>">

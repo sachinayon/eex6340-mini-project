@@ -45,7 +45,7 @@ include __DIR__ . '/includes/header.php';
                     <tr>
                         <td><?php echo htmlspecialchars($order['order_number']); ?></td>
                         <td><?php echo date('Y-m-d H:i', strtotime($order['created_at'])); ?></td>
-                        <td>$<?php echo number_format($order['total_amount'], 2); ?></td>
+                        <td>LKR <?php echo number_format($order['total_amount'], 2); ?></td>
                         <td>
                             <?php
                             $status_class = [
