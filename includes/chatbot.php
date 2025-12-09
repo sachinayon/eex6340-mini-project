@@ -1,3 +1,7 @@
+<?php
+// Get API URL for chatbot
+$chatbot_api_url = getUrlPath('api/chatbot.php');
+?>
 <!-- Chatbot Widget -->
 <div id="chatbotWidget" class="chatbot-widget">
     <!-- Chatbot Toggle Button -->
@@ -418,11 +422,30 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show typing indicator
         showTypingIndicator();
 
-        // Simulate bot response (will be replaced with actual API call later)
-        setTimeout(function() {
+        // Send to API
+        fetch('<?php echo $chatbot_api_url; ?>', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                message: message
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
             hideTypingIndicator();
-            addMessage('I understand you asked: "' + message + '". This feature will be connected to the database soon!', 'bot');
-        }, 1000);
+            if (data.success) {
+                addMessage(data.message, 'bot');
+            } else {
+                addMessage('Sorry, I encountered an error. Please try again.', 'bot');
+            }
+        })
+        .catch(error => {
+            hideTypingIndicator();
+            addMessage('Sorry, I\'m having trouble connecting. Please try again later.', 'bot');
+            console.error('Error:', error);
+        });
     }
 
     // Add message to chat
