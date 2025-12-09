@@ -164,12 +164,7 @@ include __DIR__ . '/includes/header.php';
                             <?php while ($item = $items_result->fetch_assoc()): ?>
                                 <tr>
                                     <td>
-                                        <div class="d-flex align-items-center">
-                                            <img src="<?php echo htmlspecialchars($item['image_url']); ?>" 
-                                                 alt="<?php echo htmlspecialchars($item['product_name']); ?>"
-                                                 style="width: 60px; height: 60px; object-fit: cover; margin-right: 10px;">
-                                            <?php echo htmlspecialchars($item['product_name']); ?>
-                                        </div>
+                                        <?php echo htmlspecialchars($item['product_name']); ?>
                                     </td>
                                     <td><?php echo $item['quantity']; ?></td>
                                     <td>$<?php echo number_format($item['price'], 2); ?></td>

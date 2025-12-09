@@ -59,7 +59,6 @@ include __DIR__ . '/../includes/header.php';
         <thead>
             <tr>
                 <th>ID</th>
-                <th>Image</th>
                 <th>Name</th>
                 <th>Category</th>
                 <th>Price</th>
@@ -73,11 +72,6 @@ include __DIR__ . '/../includes/header.php';
                 <?php while ($product = $products_result->fetch_assoc()): ?>
                     <tr>
                         <td><?php echo $product['id']; ?></td>
-                        <td>
-                            <img src="<?php echo htmlspecialchars($product['image_url']); ?>" 
-                                 alt="<?php echo htmlspecialchars($product['name']); ?>"
-                                 style="width: 60px; height: 60px; object-fit: cover;">
-                        </td>
                         <td><?php echo htmlspecialchars($product['name']); ?></td>
                         <td><?php echo htmlspecialchars($product['category_name'] ?? 'Uncategorized'); ?></td>
                         <td>$<?php echo number_format($product['price'], 2); ?></td>
@@ -98,7 +92,7 @@ include __DIR__ . '/../includes/header.php';
                 <?php endwhile; ?>
             <?php else: ?>
                 <tr>
-                    <td colspan="8" class="text-center">No products found</td>
+                    <td colspan="7" class="text-center">No products found</td>
                 </tr>
             <?php endif; ?>
         </tbody>

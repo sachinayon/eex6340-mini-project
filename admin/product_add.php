@@ -24,14 +24,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $price = floatval($_POST['price'] ?? 0);
     $stock_quantity = intval($_POST['stock_quantity'] ?? 0);
     $category_id = intval($_POST['category_id'] ?? 0);
-    $image_url = sanitize($_POST['image_url'] ?? '');
     $status = sanitize($_POST['status'] ?? 'active');
     
     if (empty($name) || $price <= 0) {
         $error = 'Name and valid price are required.';
     } else {
-        $insert_stmt = $conn->prepare("INSERT INTO products (name, description, price, stock_quantity, category_id, image_url, status) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $insert_stmt->bind_param("ssdiiss", $name, $description, $price, $stock_quantity, $category_id, $image_url, $status);
+        $insert_stmt = $conn->prepare("INSERT INTO products (name, description, price, stock_quantity, category_id, status) VALUES (?, ?, ?, ?, ?, ?)");
+        $insert_stmt->bind_param("ssdiis", $name, $description, $price, $stock_quantity, $category_id, $status);
         
         if ($insert_stmt->execute()) {
             $success = 'Product added successfully!';
@@ -93,11 +92,6 @@ include __DIR__ . '/../includes/header.php';
                                 <?php endwhile; ?>
                             <?php endif; ?>
                         </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="image_url" class="form-label">Image URL</label>
-                        <input type="url" class="form-control" id="image_url" name="image_url" 
-                               placeholder="https://via.placeholder.com/300">
                     </div>
                     <div class="mb-3">
                         <label for="status" class="form-label">Status</label>

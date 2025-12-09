@@ -91,14 +91,7 @@ include __DIR__ . '/includes/header.php';
                     ?>
                     <tr>
                         <td>
-                            <div class="d-flex align-items-center">
-                                <img src="<?php echo htmlspecialchars($item['image_url']); ?>" 
-                                     alt="<?php echo htmlspecialchars($item['name']); ?>"
-                                     style="width: 80px; height: 80px; object-fit: cover; margin-right: 15px;">
-                                <div>
-                                    <strong><?php echo htmlspecialchars($item['name']); ?></strong>
-                                </div>
-                            </div>
+                            <strong><?php echo htmlspecialchars($item['name']); ?></strong>
                         </td>
                         <td>$<?php echo number_format($item['price'], 2); ?></td>
                         <td>

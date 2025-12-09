@@ -41,14 +41,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $price = floatval($_POST['price'] ?? 0);
     $stock_quantity = intval($_POST['stock_quantity'] ?? 0);
     $category_id = intval($_POST['category_id'] ?? 0);
-    $image_url = sanitize($_POST['image_url'] ?? '');
     $status = sanitize($_POST['status'] ?? 'active');
     
     if (empty($name) || $price <= 0) {
         $error = 'Name and valid price are required.';
     } else {
-        $update_stmt = $conn->prepare("UPDATE products SET name = ?, description = ?, price = ?, stock_quantity = ?, category_id = ?, image_url = ?, status = ? WHERE id = ?");
-        $update_stmt->bind_param("ssdiissi", $name, $description, $price, $stock_quantity, $category_id, $image_url, $status, $product_id);
+        $update_stmt = $conn->prepare("UPDATE products SET name = ?, description = ?, price = ?, stock_quantity = ?, category_id = ?, status = ? WHERE id = ?");
+        $update_stmt->bind_param("ssdiisi", $name, $description, $price, $stock_quantity, $category_id, $status, $product_id);
         
         if ($update_stmt->execute()) {
             $success = 'Product updated successfully!';
@@ -116,11 +115,6 @@ include __DIR__ . '/../includes/header.php';
                                 <?php endwhile; ?>
                             <?php endif; ?>
                         </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="image_url" class="form-label">Image URL</label>
-                        <input type="url" class="form-control" id="image_url" name="image_url" 
-                               value="<?php echo htmlspecialchars($product['image_url']); ?>">
                     </div>
                     <div class="mb-3">
                         <label for="status" class="form-label">Status</label>

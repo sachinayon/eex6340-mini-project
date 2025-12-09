@@ -57,12 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isLoggedIn() && isCustomer()) {
 ?>
 
 <div class="row">
-    <div class="col-md-6">
-        <img src="<?php echo htmlspecialchars($product['image_url']); ?>" 
-             class="img-fluid rounded" 
-             alt="<?php echo htmlspecialchars($product['name']); ?>">
-    </div>
-    <div class="col-md-6">
+    <div class="col-md-12">
         <h2><?php echo htmlspecialchars($product['name']); ?></h2>
         <p class="text-muted">Category: <?php echo htmlspecialchars($product['category_name']); ?></p>
         <p class="lead">
