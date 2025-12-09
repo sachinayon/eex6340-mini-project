@@ -66,6 +66,9 @@ function processChatbotMessage($message, $user_id, $user_role, $conn) {
         case 'help':
             return handleHelp($user_role);
         
+        case 'quantitative':
+            return handleQuantitativeQuery($message_lower, $user_id, $user_role, $conn);
+        
         default:
             return handleGeneralQuery($message_lower, $user_id, $user_role, $conn);
     }
@@ -100,8 +103,14 @@ function detectIntent($message) {
         return 'shipping';
     }
     
-    // Payment keywords
-    if (preg_match('/\b(payment|pay|paid|payment method|credit card|debit)\b/', $message)) {
+    // Quantitative queries (how many, how much, count, sum, average) - Check BEFORE payment to catch "total paid orders"
+    if (preg_match('/\b(how many|how much|count|sum|total|average|avg|number of|quantity of)\b/', $message)) {
+        return 'quantitative';
+    }
+    
+    // Payment keywords (only if not a quantitative query about orders)
+    if (preg_match('/\b(payment|pay|payment method|credit card|debit)\b/', $message) && 
+        !preg_match('/\b(total|count|how many|how much)\b.*\b(order|orders)\b/', $message)) {
         return 'payment';
     }
     
@@ -475,16 +484,19 @@ function handleHelp($user_role) {
         $response .= "• Return policy\n";
         $response .= "• Shipping information\n";
         $response .= "• Payment methods\n";
+        $response .= "• Quantitative queries (how many orders, how much spent, average order value, etc.)\n";
     } elseif ($user_role === 'admin') {
         $response .= "• Order management queries\n";
         $response .= "• Product information\n";
         $response .= "• Delivery status\n";
         $response .= "• User information\n";
+        $response .= "• Quantitative queries (how many customers, total orders, revenue, etc.)\n";
     } else {
         $response .= "• Product information\n";
         $response .= "• Return policy\n";
         $response .= "• Shipping details\n";
         $response .= "• Payment methods\n";
+        $response .= "• Quantitative queries (how many products, count, etc.)\n";
     }
     
     $response .= "\nJust ask me anything!";
@@ -493,6 +505,412 @@ function handleHelp($user_role) {
         'success' => true,
         'message' => $response,
         'type' => 'help'
+    ];
+}
+
+/**
+ * Handle quantitative queries (how many, how much, count, sum, average)
+ */
+function handleQuantitativeQuery($message, $user_id, $user_role, $conn) {
+    // Detect operation type
+    $is_count = preg_match('/\b(how many|count|number of|quantity of)\b/', $message);
+    $is_sum = preg_match('/\b(how much|sum|total|spent|spending)\b/', $message);
+    $is_average = preg_match('/\b(average|avg|mean)\b/', $message);
+    
+    // Detect entity type
+    $is_orders = preg_match('/\b(order|orders)\b/', $message);
+    $is_products = preg_match('/\b(product|products|item|items)\b/', $message);
+    $is_cart = preg_match('/\b(cart|items in cart|cart items)\b/', $message);
+    $is_categories = preg_match('/\b(categor|categories)\b/', $message);
+    $is_spending = preg_match('/\b(spent|spending|total spent|money spent|amount spent)\b/', $message);
+    
+    // Handle orders queries
+    if ($is_orders) {
+        // Detect order status filters
+        $order_status = null;
+        $payment_status = null;
+        if (preg_match('/\b(shipped|ship)\b/', $message)) {
+            $order_status = 'shipped';
+        } elseif (preg_match('/\b(pending|waiting)\b/', $message)) {
+            $order_status = 'pending';
+        } elseif (preg_match('/\b(delivered|delivery)\b/', $message)) {
+            $order_status = 'delivered';
+        } elseif (preg_match('/\b(processing|process)\b/', $message)) {
+            $order_status = 'processing';
+        } elseif (preg_match('/\b(cancelled|canceled|cancel)\b/', $message)) {
+            $order_status = 'cancelled';
+        } elseif (preg_match('/\b(returned|return)\b/', $message)) {
+            $order_status = 'returned';
+        }
+        
+        // Check for payment status separately (only if no order status was detected)
+        if (!$order_status && preg_match('/\b(paid|payment)\b/', $message)) {
+            $payment_status = 'paid';
+        }
+        
+        // If status filter is present, treat as count query (even if "total" is mentioned)
+        if ($is_count || ($is_sum && ($order_status || $payment_status))) {
+            // Count orders (with optional status filter)
+            if ($user_role === 'admin') {
+                // Admin can see all orders
+                if ($order_status) {
+                    $query = "SELECT COUNT(*) as count FROM orders WHERE status = ?";
+                    $stmt = $conn->prepare($query);
+                    $stmt->bind_param("s", $order_status);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    $data = $result->fetch_assoc();
+                    $count = $data['count'];
+                    $response = "There are " . $count . " " . $order_status . " order" . ($count != 1 ? 's' : '') . " in the system.";
+                } elseif (isset($payment_status)) {
+                    $query = "SELECT COUNT(*) as count FROM orders WHERE payment_status = ?";
+                    $stmt = $conn->prepare($query);
+                    $stmt->bind_param("s", $payment_status);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    $data = $result->fetch_assoc();
+                    $count = $data['count'];
+                    $response = "There are " . $count . " paid order" . ($count != 1 ? 's' : '') . " in the system.";
+                } else {
+                    $query = "SELECT COUNT(*) as count FROM orders";
+                    $result = $conn->query($query);
+                    $data = $result->fetch_assoc();
+                    $count = $data['count'];
+                    $response = "There are " . $count . " total order" . ($count != 1 ? 's' : '') . " in the system.";
+                }
+            } else {
+                // Customer can only see their own orders
+                if (!$user_id) {
+                    return [
+                        'success' => true,
+                        'message' => 'Please login to check your order information.',
+                        'type' => 'info'
+                    ];
+                }
+                
+                if ($order_status) {
+                    $query = "SELECT COUNT(*) as count FROM orders WHERE user_id = ? AND status = ?";
+                    $stmt = $conn->prepare($query);
+                    $stmt->bind_param("is", $user_id, $order_status);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    $data = $result->fetch_assoc();
+                    $count = $data['count'];
+                    $response = "You have " . $count . " " . $order_status . " order" . ($count != 1 ? 's' : '') . ".";
+                } elseif (isset($payment_status)) {
+                    $query = "SELECT COUNT(*) as count FROM orders WHERE user_id = ? AND payment_status = ?";
+                    $stmt = $conn->prepare($query);
+                    $stmt->bind_param("is", $user_id, $payment_status);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    $data = $result->fetch_assoc();
+                    $count = $data['count'];
+                    $response = "You have " . $count . " paid order" . ($count != 1 ? 's' : '') . ".";
+                } else {
+                    $query = "SELECT COUNT(*) as count FROM orders WHERE user_id = ?";
+                    $stmt = $conn->prepare($query);
+                    $stmt->bind_param("i", $user_id);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    $data = $result->fetch_assoc();
+                    $count = $data['count'];
+                    $response = "You have " . $count . " order" . ($count != 1 ? 's' : '') . ".";
+                }
+            }
+            
+            return [
+                'success' => true,
+                'message' => $response,
+                'type' => 'quantitative'
+            ];
+        } elseif ($is_sum || $is_spending) {
+            // Total spending
+            $query = "SELECT SUM(total_amount) as total FROM orders WHERE user_id = ?";
+            $stmt = $conn->prepare($query);
+            $stmt->bind_param("i", $user_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $data = $result->fetch_assoc();
+            
+            $total = $data['total'] ?? 0;
+            $response = "You have spent a total of $" . number_format($total, 2) . " on all your orders.";
+            
+            return [
+                'success' => true,
+                'message' => $response,
+                'type' => 'quantitative'
+            ];
+        } elseif ($is_average) {
+            // Average order value
+            $query = "SELECT AVG(total_amount) as avg_amount, COUNT(*) as count 
+                     FROM orders WHERE user_id = ?";
+            $stmt = $conn->prepare($query);
+            $stmt->bind_param("i", $user_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $data = $result->fetch_assoc();
+            
+            if ($data['count'] > 0) {
+                $avg = $data['avg_amount'] ?? 0;
+                $response = "Your average order value is $" . number_format($avg, 2) . ".";
+            } else {
+                $response = "You don't have any orders yet to calculate an average.";
+            }
+            
+            return [
+                'success' => true,
+                'message' => $response,
+                'type' => 'quantitative'
+            ];
+        }
+    }
+    
+    // Handle products queries
+    if ($is_products) {
+        if ($is_count) {
+            // Count products
+            $query = "SELECT COUNT(*) as count FROM products WHERE status = 'active'";
+            $result = $conn->query($query);
+            $data = $result->fetch_assoc();
+            
+            $count = $data['count'];
+            $response = "We have " . $count . " active product" . ($count != 1 ? 's' : '') . " in our store.";
+            
+            return [
+                'success' => true,
+                'message' => $response,
+                'type' => 'quantitative'
+            ];
+        } elseif ($is_sum && preg_match('/\b(value|worth|total value)\b/', $message)) {
+            // Total value of products
+            $query = "SELECT SUM(price * stock_quantity) as total_value 
+                     FROM products WHERE status = 'active'";
+            $result = $conn->query($query);
+            $data = $result->fetch_assoc();
+            
+            $total = $data['total_value'] ?? 0;
+            $response = "The total value of all active products in stock is $" . number_format($total, 2) . ".";
+            
+            return [
+                'success' => true,
+                'message' => $response,
+                'type' => 'quantitative'
+            ];
+        } elseif ($is_average) {
+            // Average product price
+            $query = "SELECT AVG(price) as avg_price FROM products WHERE status = 'active'";
+            $result = $conn->query($query);
+            $data = $result->fetch_assoc();
+            
+            $avg = $data['avg_price'] ?? 0;
+            $response = "The average product price is $" . number_format($avg, 2) . ".";
+            
+            return [
+                'success' => true,
+                'message' => $response,
+                'type' => 'quantitative'
+            ];
+        }
+    }
+    
+    // Handle cart queries
+    if ($is_cart) {
+        if (!$user_id) {
+            return [
+                'success' => true,
+                'message' => 'Please login to check your cart.',
+                'type' => 'info'
+            ];
+        }
+        
+        if ($is_count) {
+            // Count cart items
+            $query = "SELECT COUNT(*) as count FROM cart WHERE user_id = ?";
+            $stmt = $conn->prepare($query);
+            $stmt->bind_param("i", $user_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $data = $result->fetch_assoc();
+            
+            $count = $data['count'];
+            if ($count > 0) {
+                // Also get total quantity
+                $qty_query = "SELECT SUM(quantity) as total_qty FROM cart WHERE user_id = ?";
+                $qty_stmt = $conn->prepare($qty_query);
+                $qty_stmt->bind_param("i", $user_id);
+                $qty_stmt->execute();
+                $qty_result = $qty_stmt->get_result();
+                $qty_data = $qty_result->fetch_assoc();
+                $total_qty = $qty_data['total_qty'] ?? 0;
+                
+                $response = "You have " . $count . " item" . ($count != 1 ? 's' : '') . 
+                           " in your cart with a total quantity of " . $total_qty . ".";
+            } else {
+                $response = "Your cart is empty. You have 0 items.";
+            }
+            
+            return [
+                'success' => true,
+                'message' => $response,
+                'type' => 'quantitative'
+            ];
+        } elseif ($is_sum) {
+            // Cart total value
+            $query = "SELECT SUM(p.price * c.quantity) as total 
+                     FROM cart c 
+                     JOIN products p ON c.product_id = p.id 
+                     WHERE c.user_id = ?";
+            $stmt = $conn->prepare($query);
+            $stmt->bind_param("i", $user_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $data = $result->fetch_assoc();
+            
+            $total = $data['total'] ?? 0;
+            if ($total > 0) {
+                $response = "The total value of items in your cart is $" . number_format($total, 2) . ".";
+            } else {
+                $response = "Your cart is empty. Total value is $0.00.";
+            }
+            
+            return [
+                'success' => true,
+                'message' => $response,
+                'type' => 'quantitative'
+            ];
+        }
+    }
+    
+    // Handle categories count
+    if ($is_categories && $is_count) {
+        $query = "SELECT COUNT(*) as count FROM categories";
+        $result = $conn->query($query);
+        $data = $result->fetch_assoc();
+        
+        $count = $data['count'];
+        $response = "We have " . $count . " categor" . ($count != 1 ? 'ies' : 'y') . ".";
+        
+        return [
+            'success' => true,
+            'message' => $response,
+            'type' => 'quantitative'
+        ];
+    }
+    
+    // Handle general spending queries
+    if ($is_spending && !$is_orders) {
+        if (!$user_id) {
+            return [
+                'success' => true,
+                'message' => 'Please login to check your spending information.',
+                'type' => 'info'
+            ];
+        }
+        
+        $query = "SELECT SUM(total_amount) as total FROM orders WHERE user_id = ?";
+        $stmt = $conn->prepare($query);
+        $stmt->bind_param("i", $user_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $data = $result->fetch_assoc();
+        
+        $total = $data['total'] ?? 0;
+        $response = "You have spent a total of $" . number_format($total, 2) . ".";
+        
+        return [
+            'success' => true,
+            'message' => $response,
+            'type' => 'quantitative'
+        ];
+    }
+    
+    // Admin-specific queries
+    if ($user_role === 'admin') {
+        $is_customers = preg_match('/\b(customer|customers|user|users)\b/', $message);
+        $is_revenue = preg_match('/\b(revenue|total revenue|sales|total sales|income)\b/', $message);
+        $is_all_orders = preg_match('/\b(all orders|total orders|all order)\b/', $message);
+        
+        // Count customers/users
+        if ($is_customers && $is_count) {
+            $query = "SELECT COUNT(*) as count FROM users WHERE role = 'customer'";
+            $result = $conn->query($query);
+            $data = $result->fetch_assoc();
+            
+            $count = $data['count'];
+            $response = "There are " . $count . " customer" . ($count != 1 ? 's' : '') . " registered in the system.";
+            
+            return [
+                'success' => true,
+                'message' => $response,
+                'type' => 'quantitative'
+            ];
+        }
+        
+        // Total orders (all orders in system)
+        if ($is_all_orders && $is_count) {
+            $query = "SELECT COUNT(*) as count FROM orders";
+            $result = $conn->query($query);
+            $data = $result->fetch_assoc();
+            
+            $count = $data['count'];
+            $response = "There are " . $count . " total order" . ($count != 1 ? 's' : '') . " in the system.";
+            
+            return [
+                'success' => true,
+                'message' => $response,
+                'type' => 'quantitative'
+            ];
+        }
+        
+        // Total revenue
+        if ($is_revenue || ($is_sum && $is_orders && !$user_id)) {
+            $query = "SELECT SUM(total_amount) as total FROM orders WHERE payment_status = 'paid'";
+            $result = $conn->query($query);
+            $data = $result->fetch_assoc();
+            
+            $total = $data['total'] ?? 0;
+            $response = "Total revenue from all paid orders is $" . number_format($total, 2) . ".";
+            
+            return [
+                'success' => true,
+                'message' => $response,
+                'type' => 'quantitative'
+            ];
+        }
+        
+        // Average order value (all orders)
+        if ($is_average && $is_orders) {
+            $query = "SELECT AVG(total_amount) as avg_amount, COUNT(*) as count FROM orders";
+            $result = $conn->query($query);
+            $data = $result->fetch_assoc();
+            
+            if ($data['count'] > 0) {
+                $avg = $data['avg_amount'] ?? 0;
+                $response = "The average order value across all orders is $" . number_format($avg, 2) . ".";
+            } else {
+                $response = "There are no orders in the system yet.";
+            }
+            
+            return [
+                'success' => true,
+                'message' => $response,
+                'type' => 'quantitative'
+            ];
+        }
+    }
+    
+    // Default response for unclear quantitative queries
+    return [
+        'success' => true,
+        'message' => "I can help you with quantitative queries about:\n" .
+                     "• How many orders you have\n" .
+                     "• How much you've spent\n" .
+                     "• Average order value\n" .
+                     "• Number of products\n" .
+                     "• Cart items count\n" .
+                     "• Number of categories\n\n" .
+                     "Please specify what you'd like to know about.",
+        'type' => 'info'
     ];
 }
 
@@ -507,7 +925,8 @@ function handleGeneralQuery($message, $user_id, $user_role, $conn) {
     $response .= "• Product information\n";
     $response .= "• Return policy\n";
     $response .= "• Shipping information\n";
-    $response .= "• Payment methods\n\n";
+    $response .= "• Payment methods\n";
+    $response .= "• Quantitative queries (how many, how much, count, sum, average)\n\n";
     $response .= "Could you rephrase your question or ask about one of these topics?";
     
     return [
